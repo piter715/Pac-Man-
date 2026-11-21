@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Debug PWA — Pac-Man 3D Arcade</title>
+<style>body{font-family:system-ui,Arial,sans-serif;background:#050a20;color:#fff;margin:0;padding:20px}h1{color:#ffe33b;font-size:22px}a{color:#38e7ff}table{border-collapse:collapse;width:100%;max-width:760px}td,th{border:1px solid #3b79ff;padding:8px 10px;text-align:left;font-size:14px;vertical-align:top}th{background:#1a2e68}.ok{color:#7CFC9A;font-weight:700}.bad{color:#ff8080;font-weight:700}code{word-break:break-all}pre{background:#0a1439;padding:12px;border-radius:8px;overflow:auto;max-width:760px;font-size:12px}</style>
+</head>
+<body>
+<h1>Debug PWA — Pac-Man 3D Arcade</h1>
+<p>Abre esta página en el dominio de Vercel (no en <code>file://</code>): el Service Worker y la instalación solo funcionan por HTTPS. <a href="/">← Volver al juego</a></p>
+<table><thead><tr><th>Comprobación</th><th>Resultado</th><th>Detalle</th></tr></thead><tbody id="rows"></tbody></table>
+<h2>Manifest</h2><pre id="manifest">Cargando…</pre>
+<h2>Service Worker</h2><pre id="sw">Cargando…</pre>
+<script>
+(function () {
+  var rows = document.getElementById('rows');
+  function row(name, ok, detail) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + name + '</td><td class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? 'PASS' : 'FAIL') + '</td><td><code>' + detail + '</code></td>';
+    rows.appendChild(tr);
+  }
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  row('HTTPS o localhost', location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1', location.protocol + '//' + location.host);
+  row('Soporte Service Worker', 'serviceWorker' in navigator, 'serviceWorker' in navigator ? 'sí' : 'no');
+  row('Modo standalone', window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'navegador (normal si se abrió desde el navegador)');
+  fetch('/manifest.json').then(function (r) {
+    row('manifest.json responde', r.ok, r.status + ' ' + r.headers.get('content-type'));
+    return r.json();
+  }).then(function (m) {
+    document.getElementById('manifest').textContent = JSON.stringify(m, null, 2);
+    row('start_url = "/"', m.start_url === '/', String(m.start_url));
+    row('scope = "/"', m.scope === '/', String(m.scope));
+    row('display = standalone', m.display === 'standalone', String(m.display));
+    row('name / short_name', !!(m.name && m.short_name), m.name + ' / ' + m.short_name);
+    (m.icons || []).forEach(function (ic) {
+      row('icono ' + ic.sizes + ' (' + ic.purpose + ')', ic.src === '/icon-' + ic.sizes.split('x')[0] + '.png', ic.src + ' — ' + ic.type);
+    });
+  }).catch(function (e) { document.getElementById('manifest').textContent = 'Error: ' + e; row('manifest.json responde', false, String(e)); });
+  ['192', '512'].forEach(function (s) {
+    var img = new Image();
+    img.onload = function () { row('icon-' + s + '.png carga', img.naturalWidth === +s && img.naturalHeight === +s, img.naturalWidth + 'x' + img.naturalHeight); };
+    img.onerror = function () { row('icon-' + s + '.png carga', false, 'no se pudo cargar /icon-' + s + '.png'); };
+    img.src = '/icon-' + s + '.png?debug=' + Date.now();
+  });
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration('/').then(function (reg) {
+      var txt = reg ? ('scope: ' + reg.scope + ' | activo: ' + !!(reg.active) + ' | controlador: ' + !!navigator.serviceWorker.controller) : 'sin registro en /';
+      document.getElementById('sw').textContent = txt;
+      row('SW registrado en /', !!reg, txt);
+    }).catch(function (e) { document.getElementById('sw').textContent = 'Error: ' + e; row('SW registrado en /', false, String(e)); });
+    navigator.serviceWorker.ready.then(function () { row('SW listo (ready)', true, 'serviceWorker.ready resolvió'); });
+  }
+  window.addEventListener('beforeinstallprompt', function () { row('beforeinstallprompt', true, 'el navegador ofrece instalar (evento recibido)'); });
+})();
+</script>
+</body>
+</html>
